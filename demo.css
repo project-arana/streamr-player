@@ -12,6 +12,14 @@
         margin-right: auto;
     }
 }*/
+  /* Hide the entire control panel... */
+video::-webkit-media-controls-panel {
+    display: none !important;
+}
+/* ...but then show only the fullscreen button */
+video::-webkit-media-controls-fullscreen-button {
+    display: block !important;
+}
 body {
     background: #000;
     color: #fff;
