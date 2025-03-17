@@ -1,81 +1,171 @@
 <!doctype html>
 <html>
 <head>
-    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, minimum-scale=1, user-scalable=yes">
-    <title>Streamr video PoC</title>
-    <link rel="stylesheet" href="demo.css"/>
-    <script src="mpegts.js">
-
-</script>
+  <meta charset="utf-8">
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, minimum-scale=1, user-scalable=yes">
+  <title>Streamr Video PoC</title>
+  <link rel="stylesheet" href="demo.css"/>
+  <style>
+    .video-container {
+      position: relative;
+      width: 1280px;
+      max-width: 100%;
+      margin: auto;
+    }
+    video {
+      width: 100%;
+      height: auto;
+      outline: none;
+      /* Do not add the controls attribute so native controls are normally hidden */
+    }
+    .fullscreen-overlay {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+    .fullscreen-overlay button {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    /* When the video element is in fullscreen mode, hide its native controls */
+    :fullscreen video::-webkit-media-controls,
+    :-webkit-full-screen video::-webkit-media-controls,
+    :fullscreen video::-moz-media-controls,
+    :-ms-fullscreen video::-ms-media-controls {
+      display: none !important;
+    }
+    /* Also reposition the overlay in fullscreen so it stays visible */
+    :fullscreen .fullscreen-overlay,
+    :-webkit-full-screen .fullscreen-overlay,
+    :-ms-fullscreen .fullscreen-overlay {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+  </style>
+  <script src="mpegts.js"></script>
 </head>
 <body>
-<div>
-    <div class="video-container">
-        <video width="1280" height="720" name="videoElement" autoplay muted playsinline preload="metadata" poster="streamr-loader.gif">
-            Your browser is too old which doesn't support HTML5 video.
-        </video>
+  <div class="video-container">
+    <video id="videoElement" autoplay muted playsinline preload="metadata" poster="streamr-loader.gif" controlsList="nopause">
+      Your browser is too old which doesn't support HTML5 video.
+    </video>
+    <div class="fullscreen-overlay">
+      <button id="fullscreenBtn"></button>
     </div>
-</div>
-<script>
+  </div>
+  <script>
+    const video = document.getElementById('videoElement');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+    // Function to enter native fullscreen on the video element.
+    function enterFullscreen() {
+      if (video.requestFullscreen) {
+        video.requestFullscreen();
+      } else if (video.webkitRequestFullscreen) { // Safari
+        video.webkitRequestFullscreen();
+      } else if (video.msRequestFullscreen) { // IE11
+        video.msRequestFullscreen();
+      }
+    }
+
+    // Function to exit fullscreen.
+    function exitFullscreen() {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) { // Safari
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { // IE11
+        document.msExitFullscreen();
+      }
+    }
+
+    // Update the overlay button based on fullscreen state.
+    function updateFullscreenButton() {
+      if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+        // When in fullscreen, show an exit icon.
+        fullscreenBtn.innerHTML = "&#x2716;"; // Unicode 'heavy multiplication x'
+        fullscreenBtn.onclick = exitFullscreen;
+      } else {
+        // When not in fullscreen, show an enter icon.
+        fullscreenBtn.innerHTML = "&#x26F6;"; // Unicode fullscreen symbol (or choose any icon)
+        fullscreenBtn.onclick = enterFullscreen;
+      }
+    }
+
+    // Listen for fullscreen change events.
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+    document.addEventListener('msfullscreenchange', updateFullscreenButton);
+
+    // Initialize the button state.
+    updateFullscreenButton();
+
+    // --- MPEG-TS player logic ---
     window.streamrStreamUrl = "0x9df242563572223fce4e1aa9870c0710abcfe257/arana";
     window.streamrPartitionId = 1;
     var checkBoxFields = ['isLive', 'withCredentials', 'liveBufferLatencyChasing'];
-        var streamURL, mediaSourceURL;
-
-        function player_load() {
-            console.log('isSupported: ' + mpegts.isSupported());
-            var i;
-            var mediaDataSource = {
-                type: 'mse'
-            };
-            mediaDataSource['url'] = '0x5f8e71b79df31565e23a603a981fc78ddbab9d71/brubeck-video-stream'
-            //console.log('MediaDataSource', mediaDataSource);
-            player_load_mds(mediaDataSource);
+    var streamURL, mediaSourceURL;
+    
+    function player_load() {
+      console.log('isSupported: ' + mpegts.isSupported());
+      var mediaDataSource = {
+        type: 'mse',
+        url: '0x5f8e71b79df31565e23a603a981fc78ddbab9d71/brubeck-video-stream'
+      };
+      player_load_mds(mediaDataSource);
+    }
+    
+    function player_load_mds(mediaDataSource) {
+      var element = document.getElementById('videoElement');
+      if (typeof player !== "undefined") {
+        if (player != null) {
+          try {
+            window.streamr.destroy();
+          } catch (error) {
+            console.log('Attempting to destroy streamr client', error);
+          }
+          player.unload();
+          player.detachMediaElement();
+          player.destroy();
+          player = null;
         }
-
-        function player_load_mds(mediaDataSource) {
-            var element = document.getElementsByName('videoElement')[0];
-
-            if (typeof player !== "undefined") {
-                if (player != null) {
-                    // try to destroy streamrclient if its in window.streamr
-                    try {
-                        window.streamr.destroy()
-                    } catch (error) {
-                        console.log('Attempting to destroy streamr client', error)
-                    }
-                    player.unload();
-                    player.detachMediaElement();
-                    player.destroy();
-                    player = null;
-                }
-            }
-            player = mpegts.createPlayer(mediaDataSource, {
-                isLive: true,
-                enableWorker: false,
-                lazyLoad: false,
-                stashInitialSize: 2048,
-                autoCleanupSourceBuffer: true,
-                liveBufferLatencyChasing: true,
-                liveBufferLatencyChasingOnPaused: true,
-                liveBufferLatencyMaxLatency: 5
-            });
-            player.attachMediaElement(element);
-            try {
-                player.load();
-            } catch (e) {
-                console.log('something went wrong', e)
-            }
-
-            player.on('error', function (event) {
-                player_load()
-            })
-
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            streamURL = document.getElementById('streamURL');
-            mediaSourceURL = document.getElementById('mediaSourceURL');
-            player_load();
-        });</script></body></html>
+      }
+      player = mpegts.createPlayer(mediaDataSource, {
+        isLive: true,
+        enableWorker: false,
+        lazyLoad: false,
+        stashInitialSize: 2048,
+        autoCleanupSourceBuffer: true,
+        liveBufferLatencyChasing: true,
+        liveBufferLatencyChasingOnPaused: true,
+        liveBufferLatencyMaxLatency: 5
+      });
+      player.attachMediaElement(element);
+      try {
+        player.load();
+      } catch (e) {
+        console.log('something went wrong', e);
+      }
+      player.on('error', function (event) {
+        player_load();
+      });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function () {
+      streamURL = document.getElementById('streamURL');
+      mediaSourceURL = document.getElementById('mediaSourceURL');
+      player_load();
+    });
+  </script>
+</body>
+</html>
